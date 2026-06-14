@@ -1,0 +1,6 @@
+# Infra-global nginx snippet (http context). Intentionally project-agnostic.
+#
+# Per-project Content-Security-Policy and security headers are rendered into each
+# vhost by register-project.sh (see nginx/conf.d/vhost.conf.template). No project-
+# specific allow-lists (analytics, fonts, API hosts) live in shared infra anymore;
+# set an optional `CSP` variable in the project manifest to customise its policy.

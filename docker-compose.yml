@@ -1,0 +1,134 @@
+name: infra
+
+services:
+  nginx:
+    image: nginx:1.27.5-alpine
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.5
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      # Mounted read-write here (vs read-only previously) so the in-container reload watcher
+      # can delete the .reload-pending trigger file after issuing nginx -s reload.
+      - letsencrypt:/etc/letsencrypt
+      - certbot-webroot:/var/www/certbot:ro
+    # In-container poll loop replaces the nginx-reloader sidecar (which mounted the docker socket
+    # read-write and ran `apk add docker-cli` — a host-root pivot if compromised). Now reloads stay
+    # entirely inside this container: certbot --deploy-hook writes /etc/letsencrypt/.reload-pending,
+    # this loop notices within 60s and calls `nginx -s reload` directly. No docker socket required.
+    command: >
+      sh -c '
+        (
+          while sleep 60; do
+            if [ -f /etc/letsencrypt/.reload-pending ]; then
+              rm -f /etc/letsencrypt/.reload-pending;
+              nginx -s reload 2>&1 || true;
+            fi;
+          done
+        ) &
+        exec nginx -g "daemon off;"
+      '
+    depends_on:
+      - mariadb
+    networks:
+      - infra-net
+
+  certbot:
+    image: certbot/certbot:v3.2.0
+    restart: unless-stopped
+    mem_limit: 64m
+    cpus: 0.25
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot-webroot:/var/www/certbot
+    entrypoint: >
+      sh -c "trap exit TERM;
+             while :; do
+               certbot renew --webroot -w /var/www/certbot --quiet \
+                 --deploy-hook 'touch /etc/letsencrypt/.reload-pending';
+               sleep 12h & wait $${!};
+             done"
+
+  mariadb:
+    image: mariadb:11.4
+    restart: unless-stopped
+    mem_limit: 768m
+    cpus: 1.0
+    security_opt:
+      - no-new-privileges:true
+    env_file: .env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
+    command: >
+      --innodb-buffer-pool-size=384M
+      --max-connections=100
+      --table-open-cache=400
+      --thread-cache-size=16
+      --performance-schema=OFF
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./init/mariadb:/docker-entrypoint-initdb.d:ro
+    networks:
+      - infra-net
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    mem_limit: 320m
+    cpus: 0.25
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+    # Multi-tenant box: REDIS_PASSWORD is REQUIRED in infra/.env on prod. The conditional shell
+    # form keeps local-stack compatibility (empty password = no auth) while erroring loudly on
+    # prod where infra/.env is the source of truth and missing it would be a config mistake.
+    command: >
+      sh -c 'if [ -n "$$REDIS_PASSWORD" ]; then
+        exec redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --appendonly no --requirepass "$$REDIS_PASSWORD";
+      else
+        echo "infra: REDIS_PASSWORD not set — starting Redis with no auth (acceptable only for isolated dev).";
+        exec redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --appendonly no;
+      fi'
+    volumes:
+      - redis_data:/data
+    networks:
+      - infra-net
+
+  static:
+    image: nginx:1.27.5-alpine
+    restart: unless-stopped
+    mem_limit: 64m
+    cpus: 0.25
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - /srv/www:/srv/www:ro
+      - ./nginx-static/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx-static/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - infra-net
+
+  # nginx-reloader (alpine + RW docker.sock + apk add docker-cli) was removed because that
+  # combination meant a code-execution bug in the sidecar's shell loop yielded host root. The
+  # certbot reload trigger is now handled by an in-container poll loop inside the nginx service
+  # itself — see its `command:` directive above.
+
+volumes:
+  mariadb_data:
+  redis_data:
+  letsencrypt:
+  certbot-webroot:
+
+networks:
+  infra-net:
+    external: true
+    name: infra-net

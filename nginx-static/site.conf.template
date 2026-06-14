@@ -1,0 +1,20 @@
+server {
+    listen 8080;
+    server_name __DOMAIN__;
+    root __ROOT__;
+    index index.html;
+
+    # Fingerprinted/static assets: cache long-term. Safe for content-hashed filenames;
+    # for non-hashed files the ETag still forces a re-fetch when the bytes change.
+    location ~* \.(?:css|js|mjs|woff2?|ttf|otf|eot|png|jpe?g|gif|svg|ico|webp|avif|map)$ {
+        add_header Cache-Control "public, max-age=31536000";
+        try_files $uri =404;
+    }
+
+    # HTML / routes: always revalidate (cheap 304 via ETag) so a redeploy shows up
+    # immediately instead of being served stale from the browser cache.
+    location / {
+        add_header Cache-Control "no-cache" always;
+        __TRY_FILES__
+    }
+}

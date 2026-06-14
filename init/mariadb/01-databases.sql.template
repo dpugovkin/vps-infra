@@ -1,0 +1,5 @@
+-- Per-project application databases are created by infra/register-project.sh
+-- (idempotent CREATE ... IF NOT EXISTS against the running MariaDB), so adding
+-- a project does NOT require wiping the DB volume. This file is intentionally
+-- a no-op placeholder kept so the init mount path stays valid on a fresh volume.
+SELECT 1;

@@ -1,0 +1,39 @@
+server {
+    listen 443 ssl http2;
+    server_name PROD_DOMAIN;
+
+    ssl_certificate     /etc/letsencrypt/live/PROD_DOMAIN/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/PROD_DOMAIN/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+    ssl_session_cache   shared:SSL:10m;
+
+    # HSTS is domain-scoped only. Add `; includeSubDomains` (and later `; preload`)
+    # per-domain ONLY after confirming every subdomain of this domain is HTTPS-only
+    # with a valid cert.
+    add_header Strict-Transport-Security  "max-age=31536000" always;
+    add_header X-Content-Type-Options     "nosniff"                              always;
+    add_header X-Frame-Options            "SAMEORIGIN"                           always;
+    add_header Referrer-Policy            "strict-origin-when-cross-origin"      always;
+    add_header Permissions-Policy         "geolocation=(), microphone=(), camera=(), payment=()" always;
+    # CSP is Report-Only while the policy is being validated in the logs.
+    # To promote to enforcing on prod:
+    #   1. Confirm zero violations over at least 1 week.
+    #   2. Change "Content-Security-Policy-Report-Only" → "Content-Security-Policy".
+    #   3. Tighten any 'unsafe-inline' allowances to nonces/hashes once the app's
+    #      inline CSS/JS is eliminated.
+    add_header Content-Security-Policy-Report-Only "__CSP__" always;
+
+    # Optional per-project location policy (rate-limited login paths, etc.). The project may
+    # drop *.conf snippets here via register-project.sh. Zero files = plain reverse proxy.
+    include /etc/nginx/conf.d/locations/__PROJECT_NAME__/*.conf;
+
+    location / {
+        proxy_pass http://__UPSTREAM__;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+    }
+}

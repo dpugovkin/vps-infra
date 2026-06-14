@@ -1,0 +1,10 @@
+# Phase 2 go-live order — get the cert BEFORE register (source of truth)
+# 2-column grid -> compact, horizontal.
+grid-columns: 2
+grid-gap: 40
+
+dns: "1 · DNS A -> VPS IP" { style.fill: "#eef2ff"; style.stroke: "#6366f1" }
+deploy: "2 · deploy app" { style.fill: "#eef2ff"; style.stroke: "#6366f1" }
+cert: "3 · TLS cert (certbot)" { style.fill: "#fef3c7"; style.stroke: "#d97706" }
+reg: "4 · register-project.sh" { style.fill: "#fef3c7"; style.stroke: "#d97706" }
+verify: "5 · verify (curl https)" { style.fill: "#ecfdf5"; style.stroke: "#059669" }

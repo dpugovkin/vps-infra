@@ -1,0 +1,32 @@
+# Shared VPS infra — the stack (brand-agnostic, source of truth)
+# Render: curl -fsS -X POST https://kroki.io/d2/svg -H "Content-Type: text/plain" \
+#         --data-binary @docs/diagrams/architecture.d2 -o docs/diagrams/architecture.svg
+direction: right
+
+net: Internet { shape: cloud; style.fill: "#e2e8f0"; style.stroke: "#64748b" }
+
+infra: "infra-net (private Docker network)" {
+  direction: right
+  style.fill: "#f8fafc"
+  style.stroke: "#94a3b8"
+  style.border-radius: 10
+
+  nginx: nginx { style.fill: "#fef3c7"; style.stroke: "#d97706" }
+  certbot: certbot { style.fill: "#fef3c7"; style.stroke: "#d97706" }
+  static: "static\n(serves /srv/www)" { style.fill: "#fef3c7"; style.stroke: "#d97706" }
+  appA: "app A" { style.fill: "#eef2ff"; style.stroke: "#6366f1" }
+  appB: "app B" { style.fill: "#eef2ff"; style.stroke: "#6366f1" }
+  db: MariaDB { shape: cylinder; style.fill: "#ecfdf5"; style.stroke: "#059669" }
+  cache: Redis { shape: cylinder; style.fill: "#ecfdf5"; style.stroke: "#059669" }
+
+  nginx -> appA
+  nginx -> appB
+  nginx -> static: "static sites"
+  appA -> db
+  appA -> cache
+  appB -> db
+  appB -> cache
+  certbot -> nginx: reload { style.stroke-dash: 4 }
+}
+
+net -> infra.nginx: "80 / 443"

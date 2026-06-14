@@ -1,0 +1,15 @@
+# Request path: browser -> nginx -> app -> data (source of truth)
+# 2-column grid -> compact, horizontal.
+grid-columns: 2
+grid-gap: 50
+
+browser: Browser { shape: person; style.fill: "#e2e8f0"; style.stroke: "#64748b" }
+nginx: "nginx  —  TLS + headers" { style.fill: "#fef3c7"; style.stroke: "#d97706" }
+app: "app container" { style.fill: "#eef2ff"; style.stroke: "#6366f1" }
+db: MariaDB { shape: cylinder; style.fill: "#ecfdf5"; style.stroke: "#059669" }
+cache: Redis { shape: cylinder; style.fill: "#ecfdf5"; style.stroke: "#059669" }
+
+browser -> nginx: "443 + SNI"
+nginx -> app: "proxy_pass"
+app -> db
+app -> cache
